@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import WebSocket, { type RawData } from "ws";
 import { SessionRecorder } from "./recorder.js";
+import { loadReplaySession, type ReplayDirection, type ReplayItem } from "./session-replay.js";
 import type { CapturedFrame, ConnectionSnapshot, FrameKind, NightwireOptions } from "./types.js";
 
 export class Nightwire extends EventEmitter {
@@ -13,6 +14,7 @@ export class Nightwire extends EventEmitter {
   private manuallyClosed = false;
   private frames: CapturedFrame[] = [];
   private recorder: SessionRecorder | null;
+  private replayToken = 0;
   private snapshot: ConnectionSnapshot;
 
   constructor(private readonly options: NightwireOptions) {
@@ -87,6 +89,7 @@ export class Nightwire extends EventEmitter {
   }
 
   disconnect(): void {
+    this.cancelSessionReplay();
     this.manuallyClosed = true;
     this.clearReconnect();
     this.stopPingLoop();
@@ -121,6 +124,76 @@ export class Nightwire extends EventEmitter {
     if (frame.kind === "binary") throw new Error("Binary replay is not supported in this version.");
     if (frame.direction === "system") throw new Error("System events cannot be replayed.");
     this.send(frame.payload);
+  }
+
+
+  async startSessionReplay(
+    file: string,
+    speed = 1,
+    direction: ReplayDirection = "out"
+  ): Promise<number> {
+    const items = await loadReplaySession(file, { speed, direction });
+
+    if (!items.length) {
+      throw new Error("Replay session contains no matching frames.");
+    }
+
+    const token = ++this.replayToken;
+
+    this.addSystemFrame(
+      `session replay started: ${items.length} frame(s) at ${speed}x`
+    );
+
+    void this.runSessionReplay(items, token);
+    return items.length;
+  }
+
+  cancelSessionReplay(): void {
+    this.replayToken++;
+  }
+
+  private async runSessionReplay(
+    items: ReplayItem[],
+    token: number
+  ): Promise<void> {
+    let sent = 0;
+
+    for (const item of items) {
+      if (token !== this.replayToken) {
+        this.addSystemFrame("session replay cancelled");
+        return;
+      }
+
+      if (item.delayMs > 0) {
+        await wait(item.delayMs);
+      }
+
+      if (token !== this.replayToken) {
+        this.addSystemFrame("session replay cancelled");
+        return;
+      }
+
+      if (item.frame.kind === "binary") {
+        this.addSystemFrame(
+          `session replay skipped binary frame ${item.frame.id}`
+        );
+        continue;
+      }
+
+      try {
+        this.send(item.frame.payload);
+        sent++;
+      } catch (error) {
+        this.addSystemFrame(
+          `session replay stopped: ${error instanceof Error ? error.message : "send failed"}`
+        );
+        return;
+      }
+    }
+
+    if (token === this.replayToken) {
+      this.addSystemFrame(`session replay finished: ${sent} frame(s) sent`);
+    }
   }
 
   private scheduleReconnect(): void {
@@ -213,4 +286,10 @@ function toBuffer(data: RawData | Buffer): Buffer {
   if (Array.isArray(data)) return Buffer.concat(data);
   if (data instanceof ArrayBuffer) return Buffer.from(data);
   return Buffer.from(data);
+}
+
+
+function wait(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

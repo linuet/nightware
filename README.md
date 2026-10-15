@@ -67,6 +67,26 @@ nightwire ws://localhost:9001 \
 
 Each captured frame is appended as one JSON object per line.
 
+## Session replay
+
+Recorded JSONL sessions can be replayed directly from the dashboard.
+
+Enter a local file such as:
+
+```text
+sessions/debug.jsonl
+```
+
+Then choose a speed:
+
+```text
+0.5x   1x   2x   5x
+```
+
+Nightwire preserves the original delay between recorded frames and scales it by the selected speed. Outgoing frames are the default because that is the usual way to reproduce a client scenario. Incoming-only and both-directions modes are also available for diagnostics.
+
+Binary frames are skipped in this version, and a running replay can be cancelled from the dashboard.
+
 ## Reconnect
 
 Automatic reconnect is enabled by default. The delay grows exponentially from 500ms up to 10 seconds.

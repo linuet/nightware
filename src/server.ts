@@ -63,6 +63,40 @@ export function createDashboardServer(nightwire: Nightwire, host: string, port: 
         return;
       }
 
+      if (req.method === "POST" && url.pathname === "/api/replay-session") {
+        const body = await readJson(req);
+        const file = String(body.file ?? "").trim();
+        const speed = Number(body.speed ?? 1);
+        const direction = String(body.direction ?? "out");
+
+        if (!file) {
+          throw new Error("Replay file path is required.");
+        }
+
+        if (!Number.isFinite(speed) || speed <= 0 || speed > 20) {
+          throw new Error("Replay speed must be greater than 0 and at most 20.");
+        }
+
+        if (!["out", "in", "both"].includes(direction)) {
+          throw new Error("Replay direction must be out, in or both.");
+        }
+
+        const queued = await nightwire.startSessionReplay(
+          file,
+          speed,
+          direction as "out" | "in" | "both"
+        );
+
+        sendJson(res, 200, { ok: true, queued });
+        return;
+      }
+
+      if (req.method === "POST" && url.pathname === "/api/cancel-replay") {
+        nightwire.cancelSessionReplay();
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
       if (req.method === "POST" && url.pathname === "/api/reconnect") {
         await nightwire.reconnect();
         json(res, 200, { ok: true });
