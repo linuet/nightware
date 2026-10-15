@@ -1,0 +1,27 @@
+{
+  "name": "nightwire",
+  "version": "0.1.0",
+  "description": "A local WebSocket debugger with live frames, latency, reconnect, recording and replay.",
+  "type": "module",
+  "bin": { "nightwire": "./dist/cli.js" },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cli.js",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "keywords": ["typescript","websocket","debugger","developer-tools","replay","networking"],
+  "author": "linuet",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
